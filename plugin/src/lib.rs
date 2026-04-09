@@ -4,12 +4,13 @@ pub mod il2cpp;
 pub mod plugin_api;
 
 use il2cpp::types::*;
+use int_enum::IntEnum;
 use plugin_api::{InitResult, Vtable};
 use serde::Serialize;
 use std::{
     ffi::{CString, c_char, c_void},
     net::{TcpListener, TcpStream},
-    ptr::null,
+    ptr::{null, null_mut},
     sync::{
         LazyLock,
         mpmc::{Receiver, Sender, channel},
@@ -34,10 +35,44 @@ static TXRX: LazyLock<(Sender<String>, Receiver<String>)> = LazyLock::new(|| cha
 static TX: LazyLock<Sender<String>> = LazyLock::new(|| TXRX.0.clone());
 static RX: LazyLock<Receiver<String>> = LazyLock::new(|| TXRX.1.clone());
 
+#[derive(Default, Serialize, IntEnum)]
+#[repr(C)]
+enum SkillTag {
+    #[default]
+    RunningStyleBegin = 100,
+    Nige = 101,
+    Senko = 102,
+    Sashi = 103,
+    Oikomi = 104,
+    RunningStyleEnd = 199,
+    DistanceBegin = 200,
+    Short = 201,
+    Mile = 202,
+    Middle = 203,
+    Long = 204,
+    DistanceEnd = 299,
+    SPEED = 401,
+    STAMINA = 402,
+    POWER = 403,
+    GUTS = 404,
+    WIZ = 405,
+    DOWN = 406,
+    SPECIAL = 407,
+    GroundBegin = 500,
+    Turf = 501,
+    Dirt = 502,
+    GroundEnd = 599,
+    ScenarioBegin = 800,
+    ScenarioEnd = 899,
+}
+
 #[derive(Default, Serialize)]
 struct SkillData {
     name: String,
     remark: String,
+    skill_tags: Vec<SkillTag>,
+    icon_id: i32,
+    is_level_up: bool,
     grade_value: i32,
 }
 
@@ -62,17 +97,17 @@ struct CharacterData {
     acquired_skills: Vec<SkillData>,
 }
 
-fn get_obj(array: &Il2CppArray, index: usize) -> *mut Il2CppObject {
+fn array_get_obj(array: &Il2CppArray, index: usize) -> *mut Il2CppObject {
     unsafe {
         let data_ptr = (array as *const _ as *const u8).add(32) as *const *mut Il2CppObject;
         *data_ptr.add(index)
     }
 }
 
-fn set_obj(array: &mut Il2CppArray, index: usize, val: *mut Il2CppObject) {
+fn array_get_int(array: &Il2CppArray, index: usize) -> i32 {
     unsafe {
-        let data_ptr = (array as *mut _ as *mut u8).add(32) as *mut *mut Il2CppObject;
-        *data_ptr.add(index) = val;
+        let data_ptr = (array as *const _ as *const u8).add(32) as *const i32;
+        *data_ptr.add(index)
     }
 }
 
@@ -139,10 +174,7 @@ fn get_object(
     return get_pointer(class, property, this) as *const Il2CppObject;
 }
 
-fn trainedcharadata_to_struct(
-    trained_chara_data: *const Il2CppObject,
-    method_info: *const c_void,
-) -> CharacterData {
+fn trainedcharadata_to_struct(trained_chara_data: *const Il2CppObject) -> CharacterData {
     unsafe {
         let vtable = VTABLE.unwrap();
         let image = (vtable.il2cpp_get_assembly_image)(c"umamusume".as_ptr());
@@ -165,42 +197,50 @@ fn trainedcharadata_to_struct(
         let getter_i32 = |property: &str| -> i32 {
             return get_i32(trained_chara_data_class, property, trained_chara_data);
         };
-        let get_acquired_skill_list: GetPointer = std::mem::transmute((vtable
-            .il2cpp_get_method_addr)(
-            trained_chara_data_class,
-            c"get_AcquiredSkillArray".as_ptr(),
-            0,
-        ));
-        let get_skill_data: GetPointer = std::mem::transmute((vtable.il2cpp_get_method_addr)(
-            acquired_skill_class,
-            c"get_MasterData".as_ptr(),
-            0,
-        ));
-        let get_name: GetPointer = std::mem::transmute((vtable.il2cpp_get_method_addr)(
+        let get_enum_tag_list: GetPointer = std::mem::transmute((vtable.il2cpp_get_method_addr)(
             skill_data_class,
-            c"get_Name".as_ptr(),
-            0,
-        ));
-        let get_remarks: GetPointer = std::mem::transmute((vtable.il2cpp_get_method_addr)(
-            skill_data_class,
-            c"get_Remarks".as_ptr(),
+            c"GetEnumTagList".as_ptr(),
             0,
         ));
 
         let grade_value_field =
             (vtable.il2cpp_get_field_from_name)(skill_data_class, c"GradeValue".as_ptr());
 
-        let skill_list_il2cpp =
-            get_acquired_skill_list(trained_chara_data, method_info) as *const Il2CppArray;
+        let skill_list_il2cpp = get_pointer(
+            trained_chara_data_class,
+            "AcquiredSkillArray",
+            trained_chara_data,
+        ) as *const Il2CppArray;
         let mut skill_vec: Vec<SkillData> = Vec::new();
 
         for i in 0..(*skill_list_il2cpp).max_length {
-            let skill = get_obj(&(*skill_list_il2cpp), i);
+            let skill = array_get_obj(skill_list_il2cpp.as_ref_unchecked(), i);
             let skill_data = get_object(acquired_skill_class, "MasterData", skill);
-            let name = get_name(skill_data, null()) as *const Il2CppString;
+            let name = get_object(skill_data_class, "Name", skill_data) as *const Il2CppString;
             let name_string = il2cppstring_as_string(&(*name));
-            let remark = get_remarks(skill_data, null()) as *const Il2CppString;
+            let remark = get_object(skill_data_class, "Remarks", skill_data) as *const Il2CppString;
             let remark_string = il2cppstring_as_string(&(*remark));
+
+            let skill_tag_list = get_enum_tag_list(skill_data, null()) as *mut Il2CppObject;
+            let list_class = *(skill_tag_list as *mut *mut Il2CppClass);
+            let size_field = (vtable.il2cpp_get_field_from_name)(list_class, c"_size".as_ptr());
+            let item_field = (vtable.il2cpp_get_field_from_name)(list_class, c"_items".as_ptr());
+            let mut size: i32 = 0;
+            (vtable.il2cpp_get_field_value)(skill_tag_list, size_field, &mut size as *mut _ as _);
+            let mut skill_tag_array: *mut Il2CppArray = null_mut();
+            (vtable.il2cpp_get_field_value)(
+                skill_tag_list,
+                item_field,
+                &mut skill_tag_array as *mut _ as _,
+            );
+            let mut skill_tag_vec: Vec<SkillTag> = Vec::new();
+            for j in 0..size as usize {
+                let skill_tag_int = array_get_int(skill_tag_array.as_ref_unchecked(), j);
+                if let Ok(skill_tag) = SkillTag::try_from(skill_tag_int as isize) {
+                    skill_tag_vec.push(skill_tag);
+                }
+            }
+
             let mut grade_value = 0;
             (vtable.il2cpp_get_field_value)(
                 skill_data as *mut Il2CppObject,
@@ -211,6 +251,9 @@ fn trainedcharadata_to_struct(
             skill_vec.push(SkillData {
                 name: name_string,
                 remark: remark_string,
+                skill_tags: skill_tag_vec,
+                icon_id: 0,
+                is_level_up: false,
                 grade_value: grade_value,
             });
         }
@@ -259,7 +302,7 @@ unsafe extern "C" fn DialogTrainedCharacterDetail_CreateSetupParameter_hook(
         let original: DialogTrainedCharacterDetail_CreateSetupParameter =
             std::mem::transmute(trampoline);
 
-        let character_data = trainedcharadata_to_struct(trained_chara_data, null());
+        let character_data = trainedcharadata_to_struct(trained_chara_data);
         tx.send(serde_json::to_string(&character_data).unwrap())
             .unwrap();
 

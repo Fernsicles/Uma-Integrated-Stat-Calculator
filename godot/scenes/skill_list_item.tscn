@@ -1,0 +1,173 @@
+[gd_scene format=3 uid="uid://cyex5cgapddhd"]
+
+[ext_resource type="Script" uid="uid://bbx5rv08lqx1w" path="res://scenes/skill_list_item.gd" id="1_y3fja"]
+[ext_resource type="FontFile" uid="uid://kq6orn2v6tl6" path="res://NotoSansCJK-Regular.ttc" id="2_f2say"]
+
+[sub_resource type="Gradient" id="Gradient_m3tla"]
+colors = PackedColorArray(0.87058824, 0.85882354, 0.90588236, 1, 0.64705884, 0.63529414, 0.70980394, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_qnirs"]
+gradient = SubResource("Gradient_m3tla")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_0nhuy"]
+content_margin_left = 1.0
+content_margin_top = 1.0
+content_margin_right = 1.0
+content_margin_bottom = 1.0
+texture = SubResource("GradientTexture1D_qnirs")
+texture_margin_left = 1.0
+texture_margin_top = 1.0
+texture_margin_right = 1.0
+texture_margin_bottom = 1.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_f2say"]
+bg_color = Color(1, 1, 1, 0)
+
+[sub_resource type="Theme" id="Theme_f2say"]
+Panel/styles/panel = SubResource("StyleBoxTexture_0nhuy")
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_f2say")
+RichTextLabel/colors/default_color = Color(0.3019608, 0.15686275, 0.05490196, 1)
+RichTextLabel/colors/font_outline_color = Color(1, 1, 1, 0.2509804)
+RichTextLabel/constants/outline_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qnirs"]
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+corner_detail = 20
+
+[sub_resource type="Gradient" id="Gradient_f2say"]
+offsets = PackedFloat32Array(0, 0.58678126, 1)
+colors = PackedColorArray(1, 1, 1, 1, 0.89411765, 0.8901961, 0.91764706, 1, 0.7529412, 0.7529412, 0.80784315, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_m3tla"]
+gradient = SubResource("Gradient_f2say")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_yv7u1"]
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+corner_detail = 20
+
+[sub_resource type="Gradient" id="Gradient_qnirs"]
+colors = PackedColorArray(0.87058824, 0.85882354, 0.90588236, 1, 0.64705884, 0.63529414, 0.70980394, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_0nhuy"]
+gradient = SubResource("Gradient_qnirs")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_yv7u1"]
+content_margin_left = 1.0
+content_margin_top = 1.0
+content_margin_right = 1.0
+content_margin_bottom = 1.0
+texture = SubResource("GradientTexture1D_0nhuy")
+texture_margin_left = 1.0
+texture_margin_top = 1.0
+texture_margin_right = 1.0
+texture_margin_bottom = 1.0
+
+[node name="SkillListItem" type="PanelContainer" unique_id=1409198170]
+custom_minimum_size = Vector2(400, 100)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = -752.0
+offset_bottom = -548.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = SubResource("Theme_f2say")
+script = ExtResource("1_y3fja")
+
+[node name="PanelContainer" type="PanelContainer" parent="." unique_id=1615829034]
+clip_children = 1
+z_index = 1
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_qnirs")
+
+[node name="TextureRect" type="TextureRect" parent="PanelContainer" unique_id=1354171241]
+layout_mode = 2
+mouse_filter = 2
+texture = SubResource("GradientTexture1D_m3tla")
+expand_mode = 2
+
+[node name="VBoxContainer" type="HBoxContainer" parent="PanelContainer/TextureRect" unique_id=1121253022]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="SkillIcon" type="TextureRect" parent="PanelContainer/TextureRect/VBoxContainer" unique_id=943488100]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 90)
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="PanelContainer/TextureRect/VBoxContainer" unique_id=2075504580]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Name" type="RichTextLabel" parent="PanelContainer/TextureRect/VBoxContainer/VBoxContainer" unique_id=2063545355]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+focus_mode = 2
+mouse_force_pass_scroll_events = false
+theme_override_fonts/normal_font = ExtResource("2_f2say")
+vertical_alignment = 1
+selection_enabled = true
+
+[node name="Remark" type="RichTextLabel" parent="PanelContainer/TextureRect/VBoxContainer/VBoxContainer" unique_id=876647876]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+focus_mode = 2
+mouse_force_pass_scroll_events = false
+theme_override_fonts/normal_font = ExtResource("2_f2say")
+selection_enabled = true
+
+[node name="CenterContainer" type="CenterContainer" parent="PanelContainer/TextureRect/VBoxContainer" unique_id=768409980]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="Score" type="RichTextLabel" parent="PanelContainer/TextureRect/VBoxContainer/CenterContainer" unique_id=766811743]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(50, 25)
+layout_mode = 2
+focus_mode = 2
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+selection_enabled = true
+
+[node name="PanelContainer2" type="PanelContainer" parent="." unique_id=246302136]
+clip_children = 1
+visibility_layer = 2
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_yv7u1")
+
+[node name="Panel" type="Panel" parent="PanelContainer2" unique_id=1201073990]
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxTexture_yv7u1")

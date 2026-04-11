@@ -26,17 +26,13 @@ use tungstenite::{
 
 use crate::plugin_api::VERSION;
 
-type DialogTrainedCharacterDetail_CreateSetupParameter = unsafe extern "C" fn(
-    *const Il2CppObject,
-    *const c_char,
-    *const c_void,
-    bool,
-    bool,
-    *const c_void,
-);
-type GetU8 = unsafe extern "C" fn(*const Il2CppObject, *const c_void) -> u8;
-type GetI32 = unsafe extern "C" fn(*const Il2CppObject, *const c_void) -> i32;
-type GetPointer = unsafe extern "C" fn(*const Il2CppObject, *const c_void) -> *const c_void;
+type DialogTrainedCharacterDetail_CreateSetupParameter =
+    unsafe extern "C" fn(*mut Il2CppObject, *mut c_char, *mut c_void, bool, bool, *mut MethodInfo);
+type OnClickListItem = unsafe extern "C" fn(*mut Il2CppObject, *mut Il2CppObject, *mut MethodInfo);
+type GetU8 = unsafe extern "C" fn(*mut Il2CppObject, *const c_void) -> u8;
+type GetI32 = unsafe extern "C" fn(*mut Il2CppObject, *const c_void) -> i32;
+type GetPointer = unsafe extern "C" fn(*mut Il2CppObject, *const c_void) -> *mut c_void;
+type GetObject = unsafe extern "C" fn(*mut Il2CppObject, *const c_void) -> *mut Il2CppObject;
 
 static mut VTABLE: Option<&'static Vtable> = None;
 static TXRX: LazyLock<(Sender<String>, Receiver<String>)> = LazyLock::new(|| channel());
@@ -82,7 +78,6 @@ struct SkillData {
     level: i32,
     remark: String,
     skill_tags: Vec<SkillTag>,
-    icon_id: i32,
     grade_value: i32,
     is_level_up: bool,
     is_unique_skill: bool,
@@ -109,6 +104,25 @@ struct CharacterData {
     proper_running_style_sashi: i32,
     proper_running_style_oikomi: i32,
     acquired_skills: Vec<SkillData>,
+}
+
+#[derive(Serialize)]
+enum MessageType {
+    CharacterUpdate,
+    SkillPlus,
+    SkillMinus,
+}
+
+#[derive(Serialize)]
+enum MessageData {
+    CharacterUpdate(CharacterData),
+    SkillUpdate(SkillData),
+}
+
+#[derive(Serialize)]
+struct Message {
+    message_type: MessageType,
+    message: MessageData,
 }
 
 fn array_get_obj(array: &Il2CppArray, index: usize) -> *mut Il2CppObject {
@@ -150,19 +164,30 @@ unsafe fn get_hachimi_and_interceptor() -> (*const c_void, *const c_void) {
     }
 }
 
-fn get_gallop_class(class_name: &str) -> *mut Il2CppClass {
+fn get_class(path: &str) -> *mut Il2CppClass {
+    let path_parts = path.split('.');
+    let mut path_parts: Vec<&str> = path_parts.collect();
     unsafe {
         let vtable = VTABLE.unwrap();
         let image = (vtable.il2cpp_get_assembly_image)(c"umamusume".as_ptr());
-        return (vtable.il2cpp_get_class)(
+        let namespace = path_parts.remove(0);
+        let mut class = (vtable.il2cpp_get_class)(
             image,
-            c"Gallop".as_ptr(),
-            CString::new(class_name).unwrap().as_ptr(),
+            CString::new(namespace).unwrap().as_ptr(),
+            CString::new(path_parts.remove(0)).unwrap().as_ptr(),
         );
+        for part in path_parts.iter() {
+            class = (vtable.il2cpp_find_nested_class)(class, CString::new(*part).unwrap().as_ptr());
+        }
+        return class;
     }
 }
 
-fn get_i32(class: *mut Il2CppClass, property: &str, this: *const Il2CppObject) -> i32 {
+fn get_gallop_class(class_name: &str) -> *mut Il2CppClass {
+    return get_class(("Gallop.".to_owned() + class_name).as_str());
+}
+
+fn get_i32(class: *mut Il2CppClass, property: &str, this: *mut Il2CppObject) -> i32 {
     unsafe {
         let getter_name = CString::new(format!("get_{property}")).unwrap();
         let vtable = VTABLE.unwrap();
@@ -175,7 +200,7 @@ fn get_i32(class: *mut Il2CppClass, property: &str, this: *const Il2CppObject) -
     }
 }
 
-fn get_u8(class: *mut Il2CppClass, property: &str, this: *const Il2CppObject) -> u8 {
+fn get_u8(class: *mut Il2CppClass, property: &str, this: *mut Il2CppObject) -> u8 {
     unsafe {
         let getter_name = CString::new(format!("get_{property}")).unwrap();
         let vtable = VTABLE.unwrap();
@@ -203,11 +228,7 @@ fn get_i32_field(class: *mut Il2CppClass, field: &str, this: *const Il2CppObject
     }
 }
 
-fn get_pointer(
-    class: *mut Il2CppClass,
-    property: &str,
-    this: *const Il2CppObject,
-) -> *const c_void {
+fn get_pointer(class: *mut Il2CppClass, property: &str, this: *mut Il2CppObject) -> *const c_void {
     unsafe {
         let getter_name = CString::new(format!("get_{property}")).unwrap();
         let vtable = VTABLE.unwrap();
@@ -223,9 +244,9 @@ fn get_pointer(
 fn get_object(
     class: *mut Il2CppClass,
     property: &str,
-    this: *const Il2CppObject,
-) -> *const Il2CppObject {
-    return get_pointer(class, property, this) as *const Il2CppObject;
+    this: *mut Il2CppObject,
+) -> *mut Il2CppObject {
+    return get_pointer(class, property, this) as *mut Il2CppObject;
 }
 
 fn chara_id_to_icon(id: i32) {
@@ -262,28 +283,12 @@ fn chara_id_to_icon(id: i32) {
     }
 }
 
-fn trainedcharadata_to_struct(trained_chara_data: *const Il2CppObject) -> CharacterData {
+fn skilldata_to_struct(skill_data: *mut Il2CppObject) -> SkillData {
     unsafe {
         let vtable = VTABLE.unwrap();
 
-        let work_trained_chara_data_class = get_gallop_class("WorkTrainedCharaData");
-        let trained_chara_data_class = (vtable.il2cpp_find_nested_class)(
-            work_trained_chara_data_class,
-            c"TrainedCharaData".as_ptr(),
-        );
-        let work_skill_data_class = get_gallop_class("WorkSkillData");
-        let acquired_skill_class =
-            (vtable.il2cpp_find_nested_class)(work_skill_data_class, c"AcquiredSkill".as_ptr());
-        let master_skill_data_class = get_gallop_class("MasterSkillData");
-        let skill_data_class =
-            (vtable.il2cpp_find_nested_class)(master_skill_data_class, c"SkillData".as_ptr());
-        let master_chara_data_class = get_gallop_class("MasterCharaData");
-        let chara_data_class =
-            (vtable.il2cpp_find_nested_class)(master_chara_data_class, c"CharaData".as_ptr());
+        let skill_data_class = get_class("Gallop.MasterSkillData.SkillData");
 
-        let getter_i32 = |property: &str| -> i32 {
-            return get_i32(trained_chara_data_class, property, trained_chara_data);
-        };
         let get_enum_tag_list: GetPointer = std::mem::transmute((vtable.il2cpp_get_method_addr)(
             skill_data_class,
             c"GetEnumTagList".as_ptr(),
@@ -295,57 +300,142 @@ fn trainedcharadata_to_struct(trained_chara_data: *const Il2CppObject) -> Charac
             0,
         ));
 
+        let name = get_object(skill_data_class, "Name", skill_data) as *const Il2CppString;
+        let name_string = il2cppstring_as_string(name.as_ref_unchecked());
+        let remark = get_object(skill_data_class, "Remarks", skill_data) as *const Il2CppString;
+        let remark_string = il2cppstring_as_string(remark.as_ref_unchecked());
+
+        let skill_tag_list = get_enum_tag_list(skill_data, null()) as *mut Il2CppObject;
+        let list_class = *(skill_tag_list as *mut *mut Il2CppClass);
+        let item_field = (vtable.il2cpp_get_field_from_name)(list_class, c"_items".as_ptr());
+        let size = get_i32_field(list_class, "_size", skill_tag_list);
+        let mut skill_tag_array: *mut Il2CppArray = null_mut();
+        (vtable.il2cpp_get_field_value)(
+            skill_tag_list,
+            item_field,
+            &mut skill_tag_array as *mut _ as _,
+        );
+        let mut skill_tag_vec: Vec<SkillTag> = Vec::new();
+        for j in 0..size as usize {
+            let skill_tag_int = array_get_int(skill_tag_array.as_ref_unchecked(), j);
+            if let Ok(skill_tag) = SkillTag::try_from(skill_tag_int as isize) {
+                skill_tag_vec.push(skill_tag);
+            }
+        }
+
+        let getter_i32_field =
+            |field: &str| -> i32 { return get_i32_field(skill_data_class, field, skill_data) };
+
+        return SkillData {
+            id: getter_i32_field("Id"),
+            name: name_string,
+            rarity: getter_i32_field("Rarity"),
+            level: 0,
+            remark: remark_string,
+            skill_tags: skill_tag_vec,
+            grade_value: getter_i32_field("GradeValue"),
+            is_level_up: get_u8(skill_data_class, "IsLevelUp", skill_data) != 0,
+            is_unique_skill: is_unique_skill(skill_data, null()) != 0,
+        };
+    }
+}
+
+fn acquiredskill_to_struct(acquired_skill: *mut Il2CppObject) -> SkillData {
+    let acquired_skill_class = get_class("Gallop.WorkSkillData.AcquiredSkill");
+
+    let level = get_i32(acquired_skill_class, "Level", acquired_skill);
+    let skill_data = get_object(acquired_skill_class, "MasterData", acquired_skill);
+    let mut output = skilldata_to_struct(skill_data);
+    output.level = level;
+
+    return output;
+}
+
+fn worksinglemodecharadata_to_struct(
+    work_single_mode_chara_data: *mut Il2CppObject,
+) -> CharacterData {
+    unsafe {
+        let vtable = VTABLE.unwrap();
+
+        let work_single_mode_chara_data_class = get_gallop_class("WorkSingleModeCharaData");
+        let card_data_class = get_class("Gallop.MasterCardData.CardData");
+
+        let getter_i32 = |property: &str| -> i32 {
+            return get_i32(
+                work_single_mode_chara_data_class,
+                property,
+                work_single_mode_chara_data,
+            );
+        };
+
+        let skill_list = get_object(
+            work_single_mode_chara_data_class,
+            "AcquiredSkillList",
+            work_single_mode_chara_data,
+        );
+
+        let list_class = *(skill_list as *mut *mut Il2CppClass);
+        let item_field = (vtable.il2cpp_get_field_from_name)(list_class, c"_items".as_ptr());
+        let size = get_i32_field(list_class, "_size", skill_list);
+        let mut skill_array: *mut Il2CppArray = null_mut();
+        (vtable.il2cpp_get_field_value)(skill_list, item_field, &mut skill_array as *mut _ as _);
+        let mut skill_vec: Vec<SkillData> = Vec::new();
+        for i in 0..size as usize {
+            let skill = array_get_obj(skill_array.as_ref_unchecked(), i);
+            skill_vec.push(acquiredskill_to_struct(skill));
+        }
+
+        let card_data = get_object(
+            work_single_mode_chara_data_class,
+            "CardData",
+            work_single_mode_chara_data,
+        );
+        let name = get_pointer(card_data_class, "Charaname", card_data) as *mut Il2CppString;
+
+        return CharacterData {
+            id: getter_i32("CharaId"),
+            name: il2cppstring_as_string(name.as_ref_unchecked()),
+            rank_score: 0,
+            speed: getter_i32("Speed"),
+            stamina: getter_i32("Stamina"),
+            power: getter_i32("Power"),
+            guts: getter_i32("Guts"),
+            wiz: getter_i32("Wiz"),
+            proper_ground_turf: getter_i32("ProperGroundTurf"),
+            proper_ground_dirt: getter_i32("ProperGroundDirt"),
+            proper_distance_short: getter_i32("ProperDistanceShort"),
+            proper_distance_mile: getter_i32("ProperDistanceMile"),
+            proper_distance_middle: getter_i32("ProperDistanceMiddle"),
+            proper_distance_long: getter_i32("ProperDistanceLong"),
+            proper_running_style_nige: getter_i32("ProperRunningStyleNige"),
+            proper_running_style_senko: getter_i32("ProperRunningStyleSenko"),
+            proper_running_style_sashi: getter_i32("ProperRunningStyleSashi"),
+            proper_running_style_oikomi: getter_i32("ProperRunningStyleOikomi"),
+            acquired_skills: skill_vec,
+        };
+    }
+}
+
+fn trainedcharadata_to_struct(trained_chara_data: *mut Il2CppObject) -> CharacterData {
+    unsafe {
+        let trained_chara_data_class = get_class("Gallop.WorkTrainedCharaData.TrainedCharaData");
+        let chara_data_class = get_class("Gallop.MasterCharaData.CharaData");
+
+        let getter_i32 = |property: &str| -> i32 {
+            return get_i32(trained_chara_data_class, property, trained_chara_data);
+        };
+
         let skill_list_il2cpp = get_pointer(
             trained_chara_data_class,
             "AcquiredSkillArray",
             trained_chara_data,
         ) as *const Il2CppArray;
-        let mut skill_vec: Vec<SkillData> = Vec::new();
 
+        let mut skill_vec: Vec<SkillData> = Vec::new();
         for i in 0..(*skill_list_il2cpp).max_length {
             let skill = array_get_obj(skill_list_il2cpp.as_ref_unchecked(), i);
-            let level = get_i32(acquired_skill_class, "Level", skill);
-            let skill_data = get_object(acquired_skill_class, "MasterData", skill);
-            let name = get_object(skill_data_class, "Name", skill_data) as *const Il2CppString;
-            let name_string = il2cppstring_as_string(name.as_ref_unchecked());
-            let remark = get_object(skill_data_class, "Remarks", skill_data) as *const Il2CppString;
-            let remark_string = il2cppstring_as_string(remark.as_ref_unchecked());
 
-            let skill_tag_list = get_enum_tag_list(skill_data, null()) as *mut Il2CppObject;
-            let list_class = *(skill_tag_list as *mut *mut Il2CppClass);
-            let size_field = (vtable.il2cpp_get_field_from_name)(list_class, c"_size".as_ptr());
-            let item_field = (vtable.il2cpp_get_field_from_name)(list_class, c"_items".as_ptr());
-            let mut size: i32 = 0;
-            (vtable.il2cpp_get_field_value)(skill_tag_list, size_field, &mut size as *mut _ as _);
-            let mut skill_tag_array: *mut Il2CppArray = null_mut();
-            (vtable.il2cpp_get_field_value)(
-                skill_tag_list,
-                item_field,
-                &mut skill_tag_array as *mut _ as _,
-            );
-            let mut skill_tag_vec: Vec<SkillTag> = Vec::new();
-            for j in 0..size as usize {
-                let skill_tag_int = array_get_int(skill_tag_array.as_ref_unchecked(), j);
-                if let Ok(skill_tag) = SkillTag::try_from(skill_tag_int as isize) {
-                    skill_tag_vec.push(skill_tag);
-                }
-            }
-
-            let getter_i32_field =
-                |field: &str| -> i32 { return get_i32_field(skill_data_class, field, skill_data) };
-
-            skill_vec.push(SkillData {
-                id: getter_i32_field("Id"),
-                name: name_string,
-                rarity: getter_i32_field("Rarity"),
-                level: level,
-                remark: remark_string,
-                skill_tags: skill_tag_vec,
-                icon_id: 0,
-                grade_value: getter_i32_field("GradeValue"),
-                is_level_up: get_u8(skill_data_class, "IsLevelUp", skill_data) != 0,
-                is_unique_skill: is_unique_skill(skill_data, null()) != 0,
-            });
+            skill_vec.push(acquiredskill_to_struct(skill));
         }
 
         let master_chara_data = get_object(
@@ -385,18 +475,16 @@ fn trainedcharadata_to_struct(trained_chara_data: *const Il2CppObject) -> Charac
 }
 
 unsafe extern "C" fn DialogTrainedCharacterDetail_CreateSetupParameter_hook(
-    trained_chara_data: *const Il2CppObject,
-    trainer_name: *const c_char,
-    on_change_partner: *const c_void,
+    trained_chara_data: *mut Il2CppObject,
+    trainer_name: *mut c_char,
+    on_change_partner: *mut c_void,
     is_single_mode: bool,
     is_follow: bool,
-    method_info: *const c_void,
+    method_info: *mut MethodInfo,
 ) {
     unsafe {
         let vtable = VTABLE.unwrap();
         let tx = TX.clone();
-
-        log(0, "CreateSetupParameter called");
 
         let (_, interceptor) = get_hachimi_and_interceptor();
         let trampoline = (vtable.interceptor_get_trampoline_addr)(
@@ -407,14 +495,16 @@ unsafe extern "C" fn DialogTrainedCharacterDetail_CreateSetupParameter_hook(
             std::mem::transmute(trampoline);
 
         let character_data = trainedcharadata_to_struct(trained_chara_data);
-        tx.send(serde_json::to_string(&character_data).unwrap())
-            .unwrap();
+        let message = Message {
+            message_type: MessageType::CharacterUpdate,
+            message: MessageData::CharacterUpdate(character_data),
+        };
+        tx.send(serde_json::to_string(&message).unwrap()).unwrap();
 
-        drop(character_data);
+        drop(message);
         drop(tx);
 
-        log(0, "Calling original function");
-        original(
+        return original(
             trained_chara_data,
             trainer_name,
             on_change_partner,
@@ -422,6 +512,121 @@ unsafe extern "C" fn DialogTrainedCharacterDetail_CreateSetupParameter_hook(
             is_follow,
             method_info,
         );
+    }
+}
+
+unsafe extern "C" fn PartsSingleModeCharacterStatusPanel_Setup_hook(
+    this: *mut Il2CppObject,
+    chara_data: *mut Il2CppObject,
+    method_info: *mut MethodInfo,
+) {
+    unsafe {
+        let vtable = VTABLE.unwrap();
+        let tx = TX.clone();
+
+        let (_, interceptor) = get_hachimi_and_interceptor();
+        let trampoline = (vtable.interceptor_get_trampoline_addr)(
+            interceptor,
+            PartsSingleModeCharacterStatusPanel_Setup_hook as *mut c_void,
+        );
+        let original: OnClickListItem = std::mem::transmute(trampoline);
+
+        let character_data = worksinglemodecharadata_to_struct(chara_data);
+        let message = Message {
+            message_type: MessageType::CharacterUpdate,
+            message: MessageData::CharacterUpdate(character_data),
+        };
+        tx.send(serde_json::to_string(&message).unwrap()).unwrap();
+
+        drop(message);
+        drop(tx);
+
+        return original(this, chara_data, method_info);
+    }
+}
+
+fn on_click_list_item_common(item: *mut Il2CppObject) -> SkillData {
+    unsafe {
+        let vtable = VTABLE.unwrap();
+
+        let parts_single_mode_skill_learning_list_item_class =
+            get_gallop_class("PartsSingleModeSkillLearningListItem");
+        let info_class = get_class("Gallop.PartsSingleModeSkillLearningListItem.Info");
+
+        let get_top_info: GetObject = std::mem::transmute((vtable.il2cpp_get_method_addr)(
+            parts_single_mode_skill_learning_list_item_class,
+            c"GetTopInfo".as_ptr(),
+            0,
+        ));
+
+        let info = get_top_info(item, null());
+        let master_data = get_object(info_class, "MasterData", info);
+        let mut skill_data = skilldata_to_struct(master_data);
+        skill_data.level = get_i32(info_class, "Level", info);
+
+        return skill_data;
+    }
+}
+
+unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickPlusListItem_hook(
+    this: *mut Il2CppObject,
+    item: *mut Il2CppObject,
+    method_info: *mut MethodInfo,
+) {
+    unsafe {
+        let vtable = VTABLE.unwrap();
+        let tx = TX.clone();
+
+        let (_, interceptor) = get_hachimi_and_interceptor();
+        let trampoline = (vtable.interceptor_get_trampoline_addr)(
+            interceptor,
+            SingleModeSkillLearningViewController_OnClickPlusListItem_hook as *mut c_void,
+        );
+        let original: OnClickListItem = std::mem::transmute(trampoline);
+
+        let skill_data = on_click_list_item_common(item);
+
+        let message = Message {
+            message_type: MessageType::SkillPlus,
+            message: MessageData::SkillUpdate(skill_data),
+        };
+        tx.send(serde_json::to_string(&message).unwrap()).unwrap();
+
+        drop(message);
+        drop(tx);
+
+        return original(this, item, method_info);
+    }
+}
+
+unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickMinusListItem_hook(
+    this: *mut Il2CppObject,
+    item: *mut Il2CppObject,
+    method_info: *mut MethodInfo,
+) {
+    unsafe {
+        let vtable = VTABLE.unwrap();
+        let tx = TX.clone();
+
+        let (_, interceptor) = get_hachimi_and_interceptor();
+        let trampoline = (vtable.interceptor_get_trampoline_addr)(
+            interceptor,
+            SingleModeSkillLearningViewController_OnClickMinusListItem_hook as *mut c_void,
+        );
+        let original: OnClickListItem = std::mem::transmute(trampoline);
+
+        let skill_data = on_click_list_item_common(item);
+
+        let message = Message {
+            message_type: MessageType::SkillMinus,
+            message: MessageData::SkillUpdate(skill_data),
+        };
+        tx.send(serde_json::to_string(&message).unwrap()).unwrap();
+
+        drop(message);
+        drop(tx);
+
+        return original(this, item, method_info);
     }
 }
 
@@ -473,10 +678,8 @@ pub extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> InitResul
         log(0, "Hooking started");
         let (_, interceptor) = get_hachimi_and_interceptor();
 
-        let dialog_trained_character_detail_class =
-            get_gallop_class("DialogTrainedCharacterDetail");
         let createsetupparameter_addr = (vtable.il2cpp_get_method_addr)(
-            dialog_trained_character_detail_class,
+            get_gallop_class("DialogTrainedCharacterDetail"),
             c"CreateSetupParameter".as_ptr(),
             5,
         );
@@ -484,6 +687,39 @@ pub extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> InitResul
             interceptor,
             createsetupparameter_addr,
             DialogTrainedCharacterDetail_CreateSetupParameter_hook as *mut c_void,
+        );
+
+        let setup_addr = (vtable.il2cpp_get_method_addr)(
+            get_gallop_class("PartsSingleModeCharacterStatusPanel"),
+            c"Setup".as_ptr(),
+            1,
+        );
+        (vtable.interceptor_hook)(
+            interceptor,
+            setup_addr,
+            PartsSingleModeCharacterStatusPanel_Setup_hook as *mut c_void,
+        );
+
+        let on_click_plus = (vtable.il2cpp_get_method_addr)(
+            get_gallop_class("SingleModeSkillLearningViewController"),
+            c"OnClickPlusListItem".as_ptr(),
+            1,
+        );
+        (vtable.interceptor_hook)(
+            interceptor,
+            on_click_plus,
+            SingleModeSkillLearningViewController_OnClickPlusListItem_hook as *mut c_void,
+        );
+
+        let on_click_minus = (vtable.il2cpp_get_method_addr)(
+            get_gallop_class("SingleModeSkillLearningViewController"),
+            c"OnClickMinusListItem".as_ptr(),
+            1,
+        );
+        (vtable.interceptor_hook)(
+            interceptor,
+            on_click_minus,
+            SingleModeSkillLearningViewController_OnClickMinusListItem_hook as *mut c_void,
         );
 
         log(0, "Hooking finished");

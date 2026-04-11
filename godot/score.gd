@@ -132,11 +132,11 @@ func calculate_score(trained_character_data: Variant) -> int:
 	score += calculate_stat_score(trained_character_data.power)
 	score += calculate_stat_score(trained_character_data.guts)
 	score += calculate_stat_score(trained_character_data.wiz)
-	print("Stat score: ", score)
+	# print("Stat score: ", score)
 	var skill_scores: Dictionary[Variant, int] = calculate_skill_scores(trained_character_data)
-	print("Skill scores:")
+	# print("Skill scores:")
 	for skill: Variant in skill_scores:
-		print("%s: %d" % [skill.name, skill_scores[skill]])
+		# print("%s: %d" % [skill.name, skill_scores[skill]])
 		score += skill_scores[skill]
 	if trained_character_data.rank_score != 0:
 		if trained_character_data.rank_score == score:

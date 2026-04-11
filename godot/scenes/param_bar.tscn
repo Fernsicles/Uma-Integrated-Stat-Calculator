@@ -1,0 +1,63 @@
+[gd_scene format=3 uid="uid://c7ktgbq1ososw"]
+
+[ext_resource type="PackedScene" uid="uid://b24w8xrl8i8up" path="res://scenes/param_box.tscn" id="1_ve10i"]
+
+[sub_resource type="Theme" id="Theme_ve10i"]
+PanelContainer/styles/panel = null
+
+[node name="ParamBar" type="PanelContainer" unique_id=10053680]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -383.0
+offset_right = 383.0
+offset_bottom = 51.0
+grow_horizontal = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = SubResource("Theme_ve10i")
+
+[node name="ParamHBoxContainer" type="HBoxContainer" parent="." unique_id=364751129]
+layout_mode = 2
+size_flags_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="SpeedBox" parent="ParamHBoxContainer" unique_id=1156059064 instance=ExtResource("1_ve10i")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+param_name = "Speed"
+
+[node name="StamBox" parent="ParamHBoxContainer" unique_id=1363637627 instance=ExtResource("1_ve10i")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+param_name = "Stamina"
+
+[node name="PowBox" parent="ParamHBoxContainer" unique_id=797694068 instance=ExtResource("1_ve10i")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+param_name = "Power"
+
+[node name="GutsBox" parent="ParamHBoxContainer" unique_id=666736984 instance=ExtResource("1_ve10i")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+param_name = "Guts"
+
+[node name="WizBox" parent="ParamHBoxContainer" unique_id=1426517700 instance=ExtResource("1_ve10i")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+param_name = "Wiz"

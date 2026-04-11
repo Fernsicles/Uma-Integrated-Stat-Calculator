@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://b24w8xrl8i8up"]
+
+[ext_resource type="Script" uid="uid://cl4otipmvtviv" path="res://scenes/param_box.gd" id="1_23dhk"]
+
+[node name="ParamBox" type="VBoxContainer" unique_id=1156059064]
+custom_minimum_size = Vector2(100, 0)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_23dhk")
+
+[node name="ParamName" type="RichTextLabel" parent="." unique_id=214385001]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 25)
+layout_mode = 2
+focus_mode = 2
+selection_enabled = true
+
+[node name="ParamValue" type="RichTextLabel" parent="." unique_id=1847844081]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 25)
+layout_mode = 2
+focus_mode = 2
+text = "0"
+selection_enabled = true

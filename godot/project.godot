@@ -11,8 +11,17 @@ config_version=5
 [application]
 
 config/name="Uma Integrated Score Calculator"
+run/main_scene="uid://m8m801bkmg0a"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
+
+[debug]
+
+gdscript/warnings/untyped_declaration=2
+
+[dotnet]
+
+project/assembly_name="Uma Integrated Score Calculator"
 
 [physics]
 
@@ -21,4 +30,5 @@ config/icon="res://icon.svg"
 [rendering]
 
 rendering_device/driver.windows="d3d12"
-renderer/rendering_method="forward_plus"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

@@ -1,14 +1,11 @@
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{c_char, c_void};
 
-use crate::il2cpp::{
-    self,
-    types::{
-        FieldInfo, Il2CppArray, Il2CppClass, Il2CppImage, Il2CppObject, Il2CppThread,
-        Il2CppTypeEnum, MethodInfo, il2cpp_array_size_t,
-    },
+use crate::il2cpp::types::{
+    FieldInfo, Il2CppArray, Il2CppClass, Il2CppImage, Il2CppObject, Il2CppThread, Il2CppTypeEnum,
+    MethodInfo, il2cpp_array_size_t,
 };
 
-const VERSION: i32 = 2;
+pub const VERSION: i32 = 2;
 
 pub type HachimiInitFn = extern "C" fn(vtable: *const Vtable, version: i32) -> InitResult;
 pub type GuiMenuCallback = extern "C" fn(userdata: *mut c_void);
@@ -105,6 +102,7 @@ pub struct Vtable {
         unsafe extern "C" fn(field: *mut FieldInfo, out_value: *mut c_void),
     pub il2cpp_set_static_field_value:
         unsafe extern "C" fn(field: *mut FieldInfo, value: *const c_void),
+    pub il2cpp_object_new: unsafe extern "C" fn(klass: *const Il2CppClass) -> *mut Il2CppObject,
     pub il2cpp_unbox: unsafe extern "C" fn(obj: *mut Il2CppObject) -> *mut c_void,
     pub il2cpp_get_main_thread: unsafe extern "C" fn() -> *mut Il2CppThread,
     pub il2cpp_get_attached_threads:

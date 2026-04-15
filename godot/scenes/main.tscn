@@ -2,9 +2,34 @@
 
 [ext_resource type="Script" uid="uid://clih2v7mvo3j5" path="res://main.gd" id="1_0wfyh"]
 [ext_resource type="Theme" uid="uid://bh42i8yunig3y" path="res://themes/dialog.theme" id="2_jyhfs"]
-[ext_resource type="PackedScene" uid="uid://b24w8xrl8i8up" path="res://scenes/param_box.tscn" id="2_sugp2"]
+[ext_resource type="PackedScene" uid="uid://c7ktgbq1ososw" path="res://scenes/param_bar.tscn" id="3_jyhfs"]
 
 [sub_resource type="Theme" id="Theme_sugp2"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_sugp2"]
+bg_color = Color(1, 1, 1, 0.70980394)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.8666667, 0.85882354, 0.8627451, 1)
+border_blend = true
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+
+[sub_resource type="Theme" id="Theme_jyhfs"]
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_sugp2")
+
+[sub_resource type="Gradient" id="Gradient_tbgi4"]
+offsets = PackedFloat32Array(0.014189422, 1)
+colors = PackedColorArray(0.7176471, 0.43137255, 0.22745098, 1, 0.5058824, 0.28235295, 0.11372549, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_tefeu"]
+gradient = SubResource("Gradient_tbgi4")
+fill_from = Vector2(0.5, 0.411)
+fill_to = Vector2(0.5, 0.739)
 
 [node name="Control" type="AspectRatioContainer" unique_id=747546040]
 anchors_preset = 15
@@ -43,59 +68,37 @@ size_flags_vertical = 3
 layout_mode = 2
 
 [node name="CharaPortrait" type="TextureRect" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/HBoxContainer/VBoxContainer" unique_id=1541141814]
+custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 
-[node name="ScoreLabel" type="RichTextLabel" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/HBoxContainer/VBoxContainer" unique_id=486924726]
+[node name="PanelContainer" type="PanelContainer" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/HBoxContainer/VBoxContainer" unique_id=1118767021]
+layout_mode = 2
+theme = SubResource("Theme_jyhfs")
+
+[node name="ScoreLabel" type="RichTextLabel" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/HBoxContainer/VBoxContainer/PanelContainer" unique_id=486924726]
 unique_name_in_owner = true
+clip_children = 2
 custom_minimum_size = Vector2(100, 25)
 layout_mode = 2
 focus_mode = 2
 text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
 selection_enabled = true
 
-[node name="ParamHBoxContainer" type="HBoxContainer" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer" unique_id=1417827181]
-layout_mode = 2
-size_flags_vertical = 2
+[node name="TextureRect" type="TextureRect" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/HBoxContainer/VBoxContainer/PanelContainer/ScoreLabel" unique_id=521575553]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = SubResource("GradientTexture2D_tefeu")
+expand_mode = 2
 
-[node name="SpeedBox" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/ParamHBoxContainer" unique_id=1156059064 instance=ExtResource("2_sugp2")]
+[node name="ParamBar" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer" unique_id=364751129 instance=ExtResource("3_jyhfs")]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-param_name = "Speed"
-
-[node name="StamBox" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/ParamHBoxContainer" unique_id=210856762 instance=ExtResource("2_sugp2")]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 0)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-param_name = "Stamina"
-
-[node name="PowBox" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/ParamHBoxContainer" unique_id=1994553286 instance=ExtResource("2_sugp2")]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 0)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-param_name = "Power"
-
-[node name="GutsBox" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/ParamHBoxContainer" unique_id=1462521135 instance=ExtResource("2_sugp2")]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 0)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-param_name = "Guts"
-
-[node name="WizBox" parent="PanelContainer/MarginContainer/VBoxContainer/HeaderContainer/ParamHBoxContainer" unique_id=814984271 instance=ExtResource("2_sugp2")]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 0)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-param_name = "Wiz"
 
 [node name="ScrollContainer" type="ScrollContainer" parent="PanelContainer/MarginContainer/VBoxContainer" unique_id=233019000]
 layout_mode = 2

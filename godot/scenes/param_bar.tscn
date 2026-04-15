@@ -1,63 +1,51 @@
 [gd_scene format=3 uid="uid://c7ktgbq1ososw"]
 
-[ext_resource type="PackedScene" uid="uid://b24w8xrl8i8up" path="res://scenes/param_box.tscn" id="1_ve10i"]
+[ext_resource type="PackedScene" uid="uid://dhg3vd703cghf" path="res://scenes/param_box_left.tscn" id="1_l5t7v"]
+[ext_resource type="Script" uid="uid://djc0koq18bugr" path="res://scenes/param_bar.gd" id="1_sjxkw"]
+[ext_resource type="PackedScene" uid="uid://nru8yl2dqa0v" path="res://scenes/param_box_center.tscn" id="2_tx0oq"]
+[ext_resource type="PackedScene" uid="uid://dr40x47uy43hj" path="res://scenes/param_box_right.tscn" id="3_sjxkw"]
 
-[sub_resource type="Theme" id="Theme_ve10i"]
-PanelContainer/styles/panel = null
-
-[node name="ParamBar" type="PanelContainer" unique_id=10053680]
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -383.0
-offset_right = 383.0
-offset_bottom = 51.0
+[node name="ParamBar" type="HBoxContainer" unique_id=364751129]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 52.0
 grow_horizontal = 2
-size_flags_horizontal = 4
-size_flags_vertical = 4
-theme = SubResource("Theme_ve10i")
-
-[node name="ParamHBoxContainer" type="HBoxContainer" parent="." unique_id=364751129]
-layout_mode = 2
-size_flags_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
 theme_override_constants/separation = 0
+script = ExtResource("1_sjxkw")
 
-[node name="SpeedBox" parent="ParamHBoxContainer" unique_id=1156059064 instance=ExtResource("1_ve10i")]
+[node name="SpeedBox" parent="." unique_id=1156059064 instance=ExtResource("1_l5t7v")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 0
 param_name = "Speed"
 
-[node name="StamBox" parent="ParamHBoxContainer" unique_id=1363637627 instance=ExtResource("1_ve10i")]
+[node name="StamBox" parent="." unique_id=159712513 instance=ExtResource("2_tx0oq")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 0
-param_name = "Stamina"
+param_name = "Stam"
 
-[node name="PowBox" parent="ParamHBoxContainer" unique_id=797694068 instance=ExtResource("1_ve10i")]
+[node name="PowBox" parent="." unique_id=48925699 instance=ExtResource("2_tx0oq")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 0
 param_name = "Power"
 
-[node name="GutsBox" parent="ParamHBoxContainer" unique_id=666736984 instance=ExtResource("1_ve10i")]
+[node name="GutsBox" parent="." unique_id=753214549 instance=ExtResource("2_tx0oq")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 0
 param_name = "Guts"
 
-[node name="WizBox" parent="ParamHBoxContainer" unique_id=1426517700 instance=ExtResource("1_ve10i")]
+[node name="WizBox" parent="." unique_id=1115428541 instance=ExtResource("3_sjxkw")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 0
 param_name = "Wiz"

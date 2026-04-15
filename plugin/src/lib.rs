@@ -9,7 +9,8 @@ use int_enum::IntEnum;
 use plugin_api::{InitResult, Vtable};
 use serde::Serialize;
 use std::{
-    ffi::{CString, c_char, c_void},
+    collections::HashMap,
+    ffi::{c_char, c_void},
     net::{TcpListener, TcpStream},
     ptr::{null, null_mut},
     sync::{
@@ -24,15 +25,21 @@ use tungstenite::{
     Utf8Bytes, accept,
 };
 
-use crate::plugin_api::VERSION;
+use crate::{
+    il2cpp::{
+        cute::ui::AtlasReference,
+        gallop::helper::{
+            Rect, UiManager, get_final_training_rank_sprite, get_sprite_texture2d, get_total_rank,
+            rect_from_sprite, sprite_to_texture2d, texture_to_texture2d, texture2d_to_png,
+        },
+        helper::*,
+    },
+    plugin_api::VERSION,
+};
 
 type DialogTrainedCharacterDetail_CreateSetupParameter =
     unsafe extern "C" fn(*mut Il2CppObject, *mut c_char, *mut c_void, bool, bool, *mut MethodInfo);
 type OnClickListItem = unsafe extern "C" fn(*mut Il2CppObject, *mut Il2CppObject, *mut MethodInfo);
-type GetU8 = unsafe extern "C" fn(*mut Il2CppObject, *const c_void) -> u8;
-type GetI32 = unsafe extern "C" fn(*mut Il2CppObject, *const c_void) -> i32;
-type GetPointer = unsafe extern "C" fn(*mut Il2CppObject, *const c_void) -> *mut c_void;
-type GetObject = unsafe extern "C" fn(*mut Il2CppObject, *const c_void) -> *mut Il2CppObject;
 
 static mut VTABLE: Option<&'static Vtable> = None;
 static TXRX: LazyLock<(Sender<String>, Receiver<String>)> = LazyLock::new(|| channel());
@@ -116,7 +123,7 @@ enum MessageType {
 #[derive(Serialize)]
 enum MessageData {
     CharacterUpdate(CharacterData),
-    SkillUpdate(SkillData),
+    SkillUpdate(Vec<SkillData>),
 }
 
 #[derive(Serialize)]
@@ -125,34 +132,9 @@ struct Message {
     message: MessageData,
 }
 
-fn array_get_obj(array: &Il2CppArray, index: usize) -> *mut Il2CppObject {
-    unsafe {
-        let data_ptr = (array as *const _ as *const u8).add(32) as *const *mut Il2CppObject;
-        *data_ptr.add(index)
-    }
-}
-
-fn array_get_int(array: &Il2CppArray, index: usize) -> i32 {
-    unsafe {
-        let data_ptr = (array as *const _ as *const u8).add(32) as *const i32;
-        *data_ptr.add(index)
-    }
-}
-
-fn il2cppstring_as_string(string: &Il2CppString) -> String {
-    let slice =
-        unsafe { std::slice::from_raw_parts(string.chars.as_ptr(), string.length as usize) };
-    return String::from_utf16_lossy(slice);
-}
-
-unsafe fn log(log_level: i32, log_str: &str) {
-    unsafe {
-        (VTABLE.unwrap().log)(
-            log_level,
-            CString::new("UISC").unwrap().as_ptr() as *const c_char,
-            CString::new(log_str).unwrap().as_ptr() as *const c_char,
-        );
-    }
+struct StaticResources {
+    rank_atlas: Vec<u8>,
+    rank_rects: Vec<Rect>,
 }
 
 unsafe fn get_hachimi_and_interceptor() -> (*const c_void, *const c_void) {
@@ -161,125 +143,6 @@ unsafe fn get_hachimi_and_interceptor() -> (*const c_void, *const c_void) {
         let hachimi = (vtable.hachimi_instance)();
         let interceptor = (vtable.hachimi_get_interceptor)(hachimi);
         (hachimi, interceptor)
-    }
-}
-
-fn get_class(path: &str) -> *mut Il2CppClass {
-    let path_parts = path.split('.');
-    let mut path_parts: Vec<&str> = path_parts.collect();
-    unsafe {
-        let vtable = VTABLE.unwrap();
-        let image = (vtable.il2cpp_get_assembly_image)(c"umamusume".as_ptr());
-        let namespace = path_parts.remove(0);
-        let mut class = (vtable.il2cpp_get_class)(
-            image,
-            CString::new(namespace).unwrap().as_ptr(),
-            CString::new(path_parts.remove(0)).unwrap().as_ptr(),
-        );
-        for part in path_parts.iter() {
-            class = (vtable.il2cpp_find_nested_class)(class, CString::new(*part).unwrap().as_ptr());
-        }
-        return class;
-    }
-}
-
-fn get_gallop_class(class_name: &str) -> *mut Il2CppClass {
-    return get_class(("Gallop.".to_owned() + class_name).as_str());
-}
-
-fn get_i32(class: *mut Il2CppClass, property: &str, this: *mut Il2CppObject) -> i32 {
-    unsafe {
-        let getter_name = CString::new(format!("get_{property}")).unwrap();
-        let vtable = VTABLE.unwrap();
-        let getter: GetI32 = std::mem::transmute((vtable.il2cpp_get_method_addr)(
-            class,
-            getter_name.as_ptr(),
-            0,
-        ));
-        return getter(this, null());
-    }
-}
-
-fn get_u8(class: *mut Il2CppClass, property: &str, this: *mut Il2CppObject) -> u8 {
-    unsafe {
-        let getter_name = CString::new(format!("get_{property}")).unwrap();
-        let vtable = VTABLE.unwrap();
-        let getter: GetU8 = std::mem::transmute((vtable.il2cpp_get_method_addr)(
-            class,
-            getter_name.as_ptr(),
-            0,
-        ));
-        return getter(this, null());
-    }
-}
-
-fn get_i32_field(class: *mut Il2CppClass, field: &str, this: *const Il2CppObject) -> i32 {
-    unsafe {
-        let vtable = VTABLE.unwrap();
-        let field =
-            (vtable.il2cpp_get_field_from_name)(class, CString::new(field).unwrap().as_ptr());
-        let mut value = 0;
-        (vtable.il2cpp_get_field_value)(
-            this as *mut Il2CppObject,
-            field,
-            &mut value as *mut _ as _,
-        );
-        return value;
-    }
-}
-
-fn get_pointer(class: *mut Il2CppClass, property: &str, this: *mut Il2CppObject) -> *const c_void {
-    unsafe {
-        let getter_name = CString::new(format!("get_{property}")).unwrap();
-        let vtable = VTABLE.unwrap();
-        let getter: GetPointer = std::mem::transmute((vtable.il2cpp_get_method_addr)(
-            class,
-            getter_name.as_ptr(),
-            0,
-        ));
-        return getter(this, null());
-    }
-}
-
-fn get_object(
-    class: *mut Il2CppClass,
-    property: &str,
-    this: *mut Il2CppObject,
-) -> *mut Il2CppObject {
-    return get_pointer(class, property, this) as *mut Il2CppObject;
-}
-
-fn chara_id_to_icon(id: i32) {
-    unsafe {
-        let vtable = VTABLE.unwrap();
-        let character_button_info_class = get_gallop_class("CharacterButtonInfo");
-        let character_button_class = get_gallop_class("CharacterButton");
-
-        type Ctor1 = unsafe extern "C" fn(
-            *mut Il2CppObject,
-            id: i32,
-            id_type: i32,
-            method_info: *const c_void,
-        );
-        let character_button_info_constructor: Ctor1 = std::mem::transmute((vtable
-            .il2cpp_get_method_addr)(
-            character_button_info_class,
-            c".ctor".as_ptr(),
-            2,
-        ));
-
-        type Ctor = unsafe extern "C" fn(*mut Il2CppObject);
-        let character_button_constructor: Ctor = std::mem::transmute((vtable
-            .il2cpp_get_method_addr)(
-            character_button_class,
-            c".ctor".as_ptr(),
-            0,
-        ));
-
-        let character_button_info = (vtable.il2cpp_object_new)(character_button_info_class);
-        character_button_info_constructor(character_button_info, id, 0, null());
-        let character_button = (vtable.il2cpp_object_new)(character_button_class);
-        character_button_constructor(character_button);
     }
 }
 
@@ -420,6 +283,7 @@ fn trainedcharadata_to_struct(trained_chara_data: *mut Il2CppObject) -> Characte
     unsafe {
         let trained_chara_data_class = get_class("Gallop.WorkTrainedCharaData.TrainedCharaData");
         let chara_data_class = get_class("Gallop.MasterCharaData.CharaData");
+        let card_rarity_data_class = get_class("Gallop.MasterCardRarityData.CardRarityData");
 
         let getter_i32 = |property: &str| -> i32 {
             return get_i32(trained_chara_data_class, property, trained_chara_data);
@@ -447,13 +311,21 @@ fn trainedcharadata_to_struct(trained_chara_data: *mut Il2CppObject) -> Characte
         let name =
             get_object(trained_chara_data_class, "Name", trained_chara_data) as *const Il2CppString;
         let name_string = il2cppstring_as_string(name.as_ref_unchecked());
+        let rank_score = getter_i32("RankScore");
 
-        chara_id_to_icon(0);
+        // let card_rarity_data = get_object(
+        //     trained_chara_data_class,
+        //     "MasterCardRarityData",
+        //     trained_chara_data,
+        // );
+        // let card_id = get_i32_field(card_rarity_data_class, "CardId", card_rarity_data);
+        // let character_button = CharacterButton::new(card_id, 5, 5, -1, get_total_rank(rank_score));
+        // let portrait = BASE64_STANDARD.encode(character_button.get_portrait());
 
         return CharacterData {
             id: get_i32_field(chara_data_class, "Id", master_chara_data),
             name: name_string,
-            rank_score: getter_i32("RankScore"),
+            rank_score: rank_score,
             speed: getter_i32("Speed"),
             stamina: getter_i32("Stamina"),
             power: getter_i32("Power"),
@@ -545,7 +417,7 @@ unsafe extern "C" fn PartsSingleModeCharacterStatusPanel_Setup_hook(
     }
 }
 
-fn on_click_list_item_common(item: *mut Il2CppObject) -> SkillData {
+fn on_click_list_item_common(item: *mut Il2CppObject, plus: bool) -> Vec<SkillData> {
     unsafe {
         let vtable = VTABLE.unwrap();
 
@@ -559,12 +431,33 @@ fn on_click_list_item_common(item: *mut Il2CppObject) -> SkillData {
             0,
         ));
 
-        let info = get_top_info(item, null());
-        let master_data = get_object(info_class, "MasterData", info);
-        let mut skill_data = skilldata_to_struct(master_data);
-        skill_data.level = get_i32(info_class, "Level", info);
+        let skills = if plus {
+            let info = get_top_info(item, null());
+            let master_data = get_object(info_class, "MasterData", info);
+            let mut skill_data = skilldata_to_struct(master_data);
+            skill_data.level = get_i32(info_class, "Level", info);
+            vec![skill_data]
+        } else {
+            let info_list = get_object_field(
+                parts_single_mode_skill_learning_list_item_class,
+                "_infoList",
+                item,
+            );
+            let list_class = *(info_list as *mut *mut Il2CppClass);
+            let size = get_i32_field(list_class, "_size", info_list);
+            let info_array = get_pointer_field(list_class, "_items", info_list) as *mut Il2CppArray;
+            let mut skill_vec: Vec<SkillData> = Vec::new();
+            for i in 0..size as usize {
+                let info = array_get_obj(info_array.as_ref_unchecked(), i);
+                let master_data = get_object(info_class, "MasterData", info);
+                let mut skill_data = skilldata_to_struct(master_data);
+                skill_data.level = get_i32(info_class, "Level", info);
+                skill_vec.push(skill_data);
+            }
+            skill_vec
+        };
 
-        return skill_data;
+        return skills;
     }
 }
 
@@ -584,7 +477,7 @@ unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickPlusListItem_h
         );
         let original: OnClickListItem = std::mem::transmute(trampoline);
 
-        let skill_data = on_click_list_item_common(item);
+        let skill_data = on_click_list_item_common(item, true);
 
         let message = Message {
             message_type: MessageType::SkillPlus,
@@ -615,7 +508,7 @@ unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickMinusListItem_
         );
         let original: OnClickListItem = std::mem::transmute(trampoline);
 
-        let skill_data = on_click_list_item_common(item);
+        let skill_data = on_click_list_item_common(item, false);
 
         let message = Message {
             message_type: MessageType::SkillMinus,
@@ -663,7 +556,7 @@ fn websocket_handler(stream: TcpStream) {
 }
 
 #[unsafe(export_name = "hachimi_init")]
-pub extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> InitResult {
+pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> InitResult {
     if vtable.is_null() {
         return InitResult::Error;
     }
@@ -674,6 +567,7 @@ pub extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> InitResul
     unsafe {
         VTABLE = Some(&*vtable);
         let vtable = VTABLE.unwrap();
+        il2cpp::helper::init(vtable);
 
         log(0, "Hooking started");
         let (_, interceptor) = get_hachimi_and_interceptor();
@@ -724,6 +618,30 @@ pub extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> InitResul
 
         log(0, "Hooking finished");
 
+        let sprite = get_final_training_rank_sprite(1);
+        let texture2d = get_sprite_texture2d(sprite);
+        let copied_texture = texture_to_texture2d(texture2d);
+        let rank_sprite_sheet = texture2d_to_png(copied_texture);
+
+        let ui_manager = UiManager::init();
+        let atlas_reference = AtlasReference::new(ui_manager.load_atlas(16, true));
+        let rank_sprite_array = atlas_reference.get_sprites();
+        let mut rank_to_rect_map = HashMap::new();
+        for i in 1..(*rank_sprite_array).max_length + 1 {
+            let sprite = get_final_training_rank_sprite(i as i32);
+            let rect = rect_from_sprite(sprite);
+            // let texture2d = sprite_to_texture2d(sprite);
+            // let png = texture2d_to_png(texture2d);
+            rank_to_rect_map.insert(i as i32, rect);
+        }
+
+        // let resource_manager_class = get_class("Gallop.ResourceManager");
+        // let load_on_view = get_method(
+        //     resource_manager_class,
+        //     "LoadOnView<UnityEngine::Texture>",
+        //     2,
+        // );
+
         log(0, "Spawning websocket server thread");
         let ws_server = TcpListener::bind("127.0.0.1:0").unwrap();
         let ws_port = ws_server.local_addr().unwrap().port();
@@ -744,6 +662,16 @@ pub extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> InitResul
                 rouille::router!(request,
                     (GET) (/socket) => {
                         rouille::Response::text(ws_port.to_string())
+                    },
+                    (GET) (/rank_atlas) => {
+
+                        rouille::Response::from_data("image/png", rank_sprite_sheet.clone())
+                    },
+                    (GET) (/rank/{rank_score: i32}) => {
+                        rouille::Response::text(serde_json::to_string(&get_total_rank(rank_score)).unwrap())
+                    },
+                    (GET) (/rank_rect/{rank: i32}) => {
+                        rouille::Response::text(serde_json::to_string(rank_to_rect_map.get(&rank).unwrap()).unwrap())
                     },
                     _ => {
                         rouille::match_assets(&request, "uisc")

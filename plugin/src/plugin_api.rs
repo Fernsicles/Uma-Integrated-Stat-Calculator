@@ -1,9 +1,6 @@
 use std::ffi::{c_char, c_void};
 
-use crate::il2cpp::types::{
-    FieldInfo, Il2CppArray, Il2CppClass, Il2CppImage, Il2CppObject, Il2CppThread, Il2CppTypeEnum,
-    MethodInfo, il2cpp_array_size_t,
-};
+use crate::il2cpp::types::*;
 
 pub const VERSION: i32 = 2;
 
@@ -92,6 +89,9 @@ pub struct Vtable {
     ) -> *mut c_void,
     pub il2cpp_find_nested_class:
         unsafe extern "C" fn(class: *mut Il2CppClass, name: *const c_char) -> *mut Il2CppClass,
+    pub il2cpp_resolve_icall: unsafe extern "C" fn(name: *const c_char) -> Il2CppMethodPointer,
+    pub il2cpp_class_get_methods:
+        unsafe extern "C" fn(klass: *mut Il2CppClass, iter: *mut *mut c_void) -> *const MethodInfo,
     pub il2cpp_get_field_from_name:
         unsafe extern "C" fn(class: *mut Il2CppClass, name: *const c_char) -> *mut FieldInfo,
     pub il2cpp_get_field_value:

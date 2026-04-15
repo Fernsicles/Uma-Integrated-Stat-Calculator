@@ -23,6 +23,10 @@ gdscript/warnings/untyped_declaration=2
 
 project/assembly_name="Uma Integrated Score Calculator"
 
+[gui]
+
+theme/custom_font="uid://bpcxosd480n2i"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

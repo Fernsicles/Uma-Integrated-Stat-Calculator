@@ -1,0 +1,36 @@
+[gd_scene format=3 uid="uid://dr40x47uy43hj"]
+
+[ext_resource type="PackedScene" uid="uid://b24w8xrl8i8up" path="res://scenes/param_box.tscn" id="1_6e0ao"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_so7vi"]
+bg_color = Color(0.47058824, 0.84705883, 0.14117648, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_color = Color(0.44313726, 0.7921569, 0.23137255, 1)
+corner_radius_top_right = 5
+
+[sub_resource type="Theme" id="Theme_gwu55"]
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_so7vi")
+RichTextLabel/colors/font_shadow_color = Color(0, 0, 0, 0.16862746)
+RichTextLabel/constants/shadow_outline_size = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nfqwy"]
+bg_color = Color(1, 1, 1, 1)
+border_width_left = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.44313726, 0.7921569, 0.23137255, 1)
+corner_radius_bottom_right = 5
+
+[sub_resource type="Theme" id="Theme_hxf0n"]
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_nfqwy")
+RichTextLabel/colors/default_color = Color(0.9843137, 0.5372549, 0.18431373, 1)
+
+[node name="ParamBox" unique_id=1156059064 instance=ExtResource("1_6e0ao")]
+
+[node name="PanelContainer" parent="." index="0" unique_id=368797051]
+theme = SubResource("Theme_gwu55")
+
+[node name="PanelContainer2" parent="." index="1" unique_id=1244768314]
+theme = SubResource("Theme_hxf0n")

@@ -28,6 +28,8 @@ pub fn texture_to_texture2d(texture: *mut Il2CppObject) -> *mut Il2CppObject {
 
         let render_texture_get_temporary: unsafe extern "C" fn(i32, i32) -> *mut Il2CppObject =
             std::mem::transmute(get_method(rendertexture_class, "GetTemporary", 2));
+        let render_texture_release: unsafe extern "C" fn(*mut Il2CppObject) =
+            std::mem::transmute(get_method(rendertexture_class, "Release", 0));
         let blit2: unsafe extern "C" fn(*mut Il2CppObject, *mut Il2CppObject) =
             std::mem::transmute(resolve_icall(
                 "UnityEngine.Graphics::Blit2(UnityEngine.Texture,UnityEngine.RenderTexture)",
@@ -46,8 +48,9 @@ pub fn texture_to_texture2d(texture: *mut Il2CppObject) -> *mut Il2CppObject {
         let render_texture = render_texture_get_temporary(width, height);
 
         blit2(texture, render_texture);
-
-        return convert_render_tex_to_texture2d(render_texture, 4);
+        let out = convert_render_tex_to_texture2d(render_texture, 4);
+        render_texture_release(render_texture);
+        return out;
     }
 }
 
@@ -124,44 +127,53 @@ pub fn rect_from_sprite(sprite: *mut Il2CppObject) -> Rect {
             *mut Il2CppObject,
         ) -> *mut Il2CppObject =
             std::mem::transmute(get_method(sprite_class, "get_textureRect", 0));
-        let rect_get_width: unsafe extern "C" fn(*mut Il2CppObject) -> c_float =
-            std::mem::transmute(get_method(rect_class, "get_width", 0));
-        let rect_get_height: unsafe extern "C" fn(*mut Il2CppObject) -> c_float =
-            std::mem::transmute(get_method(rect_class, "get_height", 0));
-        let rect_get_x: unsafe extern "C" fn(*mut Il2CppObject) -> c_float =
-            std::mem::transmute(get_method(rect_class, "get_x", 0));
-        let rect_get_y: unsafe extern "C" fn(*mut Il2CppObject) -> c_float =
-            std::mem::transmute(get_method(rect_class, "get_y", 0));
 
         let rect = object_new(rect_class);
         let texturerect = sprite_get_texturerect(rect, sprite);
 
         return Rect {
-            x: rect_get_x(texturerect),
-            y: rect_get_y(texturerect),
-            width: rect_get_width(texturerect),
-            height: rect_get_height(texturerect),
+            x: get_float(rect_class, "x", texturerect),
+            y: get_float(rect_class, "y", texturerect),
+            width: get_float(rect_class, "width", texturerect),
+            height: get_float(rect_class, "height", texturerect),
         };
     }
 }
 
 pub fn sprite_to_texture2d(sprite: *mut Il2CppObject) -> *mut Il2CppObject {
     unsafe {
-        let atlas_utilities_class = get_class_from_namespace(
-            "Plugins.dll",
-            "Spine.Unity.Modules.AttachmentTools",
-            "AtlasUtilities",
-        );
+        let sprite_class = get_class_from_image("UnityEngine.CoreModule.dll", "UnityEngine.Sprite");
+        let texture2d_class =
+            get_class_from_image("UnityEngine.CoreModule.dll", "UnityEngine.Texture2D");
 
-        let to_texture: unsafe extern "C" fn(
+        let texture2d_ctor: unsafe extern "C" fn(*mut Il2CppObject, i32, i32, i32, bool) =
+            std::mem::transmute(get_method(texture2d_class, ".ctor", 4));
+        let get_pixels: unsafe extern "C" fn(
             *mut Il2CppObject,
             i32,
-            bool,
-            *const MethodInfo,
-        ) -> *mut Il2CppObject =
-            std::mem::transmute(get_nth_method(atlas_utilities_class, "ToTexture", 2));
+            i32,
+            i32,
+            i32,
+            i32,
+        ) -> *mut Il2CppArray = std::mem::transmute(get_method(texture2d_class, "GetPixels", 5));
+        let set_pixels: unsafe extern "C" fn(*mut Il2CppObject, *mut Il2CppArray, i32) =
+            std::mem::transmute(get_method(texture2d_class, "SetPixels", 2));
 
-        return to_texture(sprite, 4, false, null());
+        let texture = get_object(sprite_class, "texture", sprite);
+        let newtexture = texture_to_texture2d(texture);
+        let rect = rect_from_sprite(sprite);
+        let colors = get_pixels(
+            newtexture,
+            rect.x as i32,
+            rect.y as i32,
+            rect.width as i32,
+            rect.height as i32,
+            0,
+        );
+        let outtexture = object_new(texture2d_class);
+        texture2d_ctor(outtexture, rect.width as i32, rect.height as i32, 4, false);
+        set_pixels(outtexture, colors, 0);
+        return outtexture;
     }
 }
 

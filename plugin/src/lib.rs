@@ -618,21 +618,22 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
 
         log(0, "Hooking finished");
 
-        let sprite = get_final_training_rank_sprite(1);
-        let texture2d = get_sprite_texture2d(sprite);
-        let copied_texture = texture_to_texture2d(texture2d);
-        let rank_sprite_sheet = texture2d_to_png(copied_texture);
-
+        let sprite_class = get_class_from_image("UnityEngine.CoreModule.dll", "UnityEngine.Sprite");
+        let sprite_get_name: unsafe extern "C" fn(*mut Il2CppObject) -> *mut Il2CppString =
+            std::mem::transmute(get_method(sprite_class, "get_name", 0));
         let ui_manager = UiManager::init();
         let atlas_reference = AtlasReference::new(ui_manager.load_atlas(16, true));
         let rank_sprite_array = atlas_reference.get_sprites();
-        let mut rank_to_rect_map = HashMap::new();
-        for i in 1..(*rank_sprite_array).max_length + 1 {
-            let sprite = get_final_training_rank_sprite(i as i32);
-            let rect = rect_from_sprite(sprite);
-            // let texture2d = sprite_to_texture2d(sprite);
-            // let png = texture2d_to_png(texture2d);
-            rank_to_rect_map.insert(i as i32, rect);
+        let mut rank_icons = HashMap::new();
+        for i in 0..(*rank_sprite_array).max_length {
+            let sprite = array_get_obj(rank_sprite_array.as_ref_unchecked(), i);
+            let sprite_name = sprite_get_name(sprite);
+            let sprite_name_string = il2cppstring_as_string(sprite_name.as_ref_unchecked());
+            let sprite_name_split: Vec<&str> = sprite_name_string.split("_").collect();
+            let sprite_index: i32 = sprite_name_split.last().unwrap().parse().unwrap();
+            let texture2d = sprite_to_texture2d(sprite);
+            let png = texture2d_to_png(texture2d);
+            rank_icons.insert(sprite_index + 1, png);
         }
 
         // let resource_manager_class = get_class("Gallop.ResourceManager");
@@ -663,15 +664,15 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
                     (GET) (/socket) => {
                         rouille::Response::text(ws_port.to_string())
                     },
-                    (GET) (/rank_atlas) => {
-
-                        rouille::Response::from_data("image/png", rank_sprite_sheet.clone())
-                    },
                     (GET) (/rank/{rank_score: i32}) => {
                         rouille::Response::text(serde_json::to_string(&get_total_rank(rank_score)).unwrap())
                     },
-                    (GET) (/rank_rect/{rank: i32}) => {
-                        rouille::Response::text(serde_json::to_string(rank_to_rect_map.get(&rank).unwrap()).unwrap())
+                    (GET) (/rank_icon/{rank_score: i32}) => {
+                        if let Some(icon) = rank_icons.get(&get_total_rank(rank_score)) {
+                            rouille::Response::from_data("image/png", icon.clone())
+                        } else {
+                            rouille::Response::empty_400()
+                        }
                     },
                     _ => {
                         rouille::match_assets(&request, "uisc")

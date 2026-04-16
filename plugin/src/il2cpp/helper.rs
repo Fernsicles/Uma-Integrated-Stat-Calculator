@@ -1,5 +1,5 @@
 use std::{
-    ffi::{CStr, CString, c_char, c_void},
+    ffi::{CStr, CString, c_char, c_float, c_void},
     ptr::{null, null_mut},
 };
 
@@ -184,6 +184,15 @@ pub fn get_u8(class: *mut Il2CppClass, property: &str, this: *mut Il2CppObject) 
             0,
         ));
         return getter(this, null());
+    }
+}
+
+pub fn get_float(class: *mut Il2CppClass, property: &str, this: *mut Il2CppObject) -> c_float {
+    unsafe {
+        let getter_name = format!("get_{property}");
+        let getter: unsafe extern "C" fn(*mut Il2CppObject) -> c_float =
+            std::mem::transmute(get_method(class, getter_name.as_str(), 0));
+        return getter(this);
     }
 }
 

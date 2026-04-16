@@ -3,11 +3,6 @@
 pub mod il2cpp;
 pub mod plugin_api;
 
-use bytes::Buf;
-use il2cpp::types::*;
-use int_enum::IntEnum;
-use plugin_api::{InitResult, Vtable};
-use serde::Serialize;
 use std::{
     collections::HashMap,
     ffi::{c_char, c_void},
@@ -19,6 +14,12 @@ use std::{
     },
     thread,
 };
+
+use bytes::Buf;
+use il2cpp::types::*;
+use int_enum::IntEnum;
+use plugin_api::{InitResult, Vtable};
+use serde::Serialize;
 use tungstenite::{
     Bytes,
     Message::{Binary, Text},
@@ -26,18 +27,11 @@ use tungstenite::{
 };
 
 use crate::{
-    il2cpp::{
-        cute::ui::AtlasReference,
-        gallop::helper::{
-            Rect, UiManager, get_final_training_rank_sprite, get_sprite_texture2d, get_total_rank,
-            rect_from_sprite, sprite_to_texture2d, texture_to_texture2d, texture2d_to_png,
-        },
-        helper::*,
-    },
+    il2cpp::{cute::ui::AtlasReference, gallop::helper::*, helper::*},
     plugin_api::VERSION,
 };
 
-type DialogTrainedCharacterDetail_CreateSetupParameter =
+type DialogTrainedCharacterDetailCreateSetupParameter =
     unsafe extern "C" fn(*mut Il2CppObject, *mut c_char, *mut c_void, bool, bool, *mut MethodInfo);
 type OnClickListItem = unsafe extern "C" fn(*mut Il2CppObject, *mut Il2CppObject, *mut MethodInfo);
 
@@ -132,10 +126,10 @@ struct Message {
     message: MessageData,
 }
 
-struct StaticResources {
-    rank_atlas: Vec<u8>,
-    rank_rects: Vec<Rect>,
-}
+// struct StaticResources {
+//     rank_atlas: Vec<u8>,
+//     rank_icons: Vec<u8>,
+// }
 
 unsafe fn get_hachimi_and_interceptor() -> (*const c_void, *const c_void) {
     unsafe {
@@ -283,7 +277,7 @@ fn trainedcharadata_to_struct(trained_chara_data: *mut Il2CppObject) -> Characte
     unsafe {
         let trained_chara_data_class = get_class("Gallop.WorkTrainedCharaData.TrainedCharaData");
         let chara_data_class = get_class("Gallop.MasterCharaData.CharaData");
-        let card_rarity_data_class = get_class("Gallop.MasterCardRarityData.CardRarityData");
+        // let card_rarity_data_class = get_class("Gallop.MasterCardRarityData.CardRarityData");
 
         let getter_i32 = |property: &str| -> i32 {
             return get_i32(trained_chara_data_class, property, trained_chara_data);
@@ -346,7 +340,7 @@ fn trainedcharadata_to_struct(trained_chara_data: *mut Il2CppObject) -> Characte
     }
 }
 
-unsafe extern "C" fn DialogTrainedCharacterDetail_CreateSetupParameter_hook(
+unsafe extern "C" fn dialog_trained_character_detail_create_setup_parameter_hook(
     trained_chara_data: *mut Il2CppObject,
     trainer_name: *mut c_char,
     on_change_partner: *mut c_void,
@@ -361,9 +355,9 @@ unsafe extern "C" fn DialogTrainedCharacterDetail_CreateSetupParameter_hook(
         let (_, interceptor) = get_hachimi_and_interceptor();
         let trampoline = (vtable.interceptor_get_trampoline_addr)(
             interceptor,
-            DialogTrainedCharacterDetail_CreateSetupParameter_hook as *mut c_void,
+            dialog_trained_character_detail_create_setup_parameter_hook as *mut c_void,
         );
-        let original: DialogTrainedCharacterDetail_CreateSetupParameter =
+        let original: DialogTrainedCharacterDetailCreateSetupParameter =
             std::mem::transmute(trampoline);
 
         let character_data = trainedcharadata_to_struct(trained_chara_data);
@@ -387,7 +381,7 @@ unsafe extern "C" fn DialogTrainedCharacterDetail_CreateSetupParameter_hook(
     }
 }
 
-unsafe extern "C" fn PartsSingleModeCharacterStatusPanel_Setup_hook(
+unsafe extern "C" fn parts_single_mode_character_status_panel_setup_hook(
     this: *mut Il2CppObject,
     chara_data: *mut Il2CppObject,
     method_info: *mut MethodInfo,
@@ -399,7 +393,7 @@ unsafe extern "C" fn PartsSingleModeCharacterStatusPanel_Setup_hook(
         let (_, interceptor) = get_hachimi_and_interceptor();
         let trampoline = (vtable.interceptor_get_trampoline_addr)(
             interceptor,
-            PartsSingleModeCharacterStatusPanel_Setup_hook as *mut c_void,
+            parts_single_mode_character_status_panel_setup_hook as *mut c_void,
         );
         let original: OnClickListItem = std::mem::transmute(trampoline);
 
@@ -414,6 +408,33 @@ unsafe extern "C" fn PartsSingleModeCharacterStatusPanel_Setup_hook(
         drop(tx);
 
         return original(this, chara_data, method_info);
+    }
+}
+
+fn single_mode_main_view_training_status_setup_hook(
+    this: *mut Il2CppObject,
+    chara_data: *mut Il2CppObject,
+) {
+    unsafe {
+        let vtable = VTABLE.unwrap();
+        let tx = TX.clone();
+
+        let (_, interceptor) = get_hachimi_and_interceptor();
+        let trampoline = (vtable.interceptor_get_trampoline_addr)(
+            interceptor,
+            single_mode_main_view_training_status_setup_hook as *mut c_void,
+        );
+        let original: unsafe extern "C" fn(*mut Il2CppObject, *mut Il2CppObject) =
+            std::mem::transmute(trampoline);
+
+        let character_data = worksinglemodecharadata_to_struct(chara_data);
+        let message = Message {
+            message_type: MessageType::CharacterUpdate,
+            message: MessageData::CharacterUpdate(character_data),
+        };
+        tx.send(serde_json::to_string(&message).unwrap()).unwrap();
+
+        return original(this, chara_data);
     }
 }
 
@@ -461,7 +482,7 @@ fn on_click_list_item_common(item: *mut Il2CppObject, plus: bool) -> Vec<SkillDa
     }
 }
 
-unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickPlusListItem_hook(
+unsafe extern "C" fn single_mode_skill_learning_view_controller_on_click_plus_list_item_hook(
     this: *mut Il2CppObject,
     item: *mut Il2CppObject,
     method_info: *mut MethodInfo,
@@ -473,7 +494,7 @@ unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickPlusListItem_h
         let (_, interceptor) = get_hachimi_and_interceptor();
         let trampoline = (vtable.interceptor_get_trampoline_addr)(
             interceptor,
-            SingleModeSkillLearningViewController_OnClickPlusListItem_hook as *mut c_void,
+            single_mode_skill_learning_view_controller_on_click_plus_list_item_hook as *mut c_void,
         );
         let original: OnClickListItem = std::mem::transmute(trampoline);
 
@@ -492,7 +513,7 @@ unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickPlusListItem_h
     }
 }
 
-unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickMinusListItem_hook(
+unsafe extern "C" fn single_mode_skill_learning_view_controller_on_click_minus_list_item_hook(
     this: *mut Il2CppObject,
     item: *mut Il2CppObject,
     method_info: *mut MethodInfo,
@@ -504,7 +525,7 @@ unsafe extern "C" fn SingleModeSkillLearningViewController_OnClickMinusListItem_
         let (_, interceptor) = get_hachimi_and_interceptor();
         let trampoline = (vtable.interceptor_get_trampoline_addr)(
             interceptor,
-            SingleModeSkillLearningViewController_OnClickMinusListItem_hook as *mut c_void,
+            single_mode_skill_learning_view_controller_on_click_minus_list_item_hook as *mut c_void,
         );
         let original: OnClickListItem = std::mem::transmute(trampoline);
 
@@ -572,48 +593,59 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
         log(0, "Hooking started");
         let (_, interceptor) = get_hachimi_and_interceptor();
 
-        let createsetupparameter_addr = (vtable.il2cpp_get_method_addr)(
+        let orig_addr = (vtable.il2cpp_get_method_addr)(
             get_gallop_class("DialogTrainedCharacterDetail"),
             c"CreateSetupParameter".as_ptr(),
             5,
         );
         (vtable.interceptor_hook)(
             interceptor,
-            createsetupparameter_addr,
-            DialogTrainedCharacterDetail_CreateSetupParameter_hook as *mut c_void,
+            orig_addr,
+            dialog_trained_character_detail_create_setup_parameter_hook as *mut c_void,
         );
 
-        let setup_addr = (vtable.il2cpp_get_method_addr)(
+        let orig_addr = (vtable.il2cpp_get_method_addr)(
             get_gallop_class("PartsSingleModeCharacterStatusPanel"),
             c"Setup".as_ptr(),
             1,
         );
         (vtable.interceptor_hook)(
             interceptor,
-            setup_addr,
-            PartsSingleModeCharacterStatusPanel_Setup_hook as *mut c_void,
+            orig_addr,
+            parts_single_mode_character_status_panel_setup_hook as *mut c_void,
         );
 
-        let on_click_plus = (vtable.il2cpp_get_method_addr)(
+        let orig_addr = get_method(
+            get_gallop_class("SingleModeMainViewTrainingStatus"),
+            "Setup",
+            1,
+        );
+        (vtable.interceptor_hook)(
+            interceptor,
+            orig_addr,
+            single_mode_main_view_training_status_setup_hook as *mut c_void,
+        );
+
+        let orig_addr = (vtable.il2cpp_get_method_addr)(
             get_gallop_class("SingleModeSkillLearningViewController"),
             c"OnClickPlusListItem".as_ptr(),
             1,
         );
         (vtable.interceptor_hook)(
             interceptor,
-            on_click_plus,
-            SingleModeSkillLearningViewController_OnClickPlusListItem_hook as *mut c_void,
+            orig_addr,
+            single_mode_skill_learning_view_controller_on_click_plus_list_item_hook as *mut c_void,
         );
 
-        let on_click_minus = (vtable.il2cpp_get_method_addr)(
+        let orig_addr = (vtable.il2cpp_get_method_addr)(
             get_gallop_class("SingleModeSkillLearningViewController"),
             c"OnClickMinusListItem".as_ptr(),
             1,
         );
         (vtable.interceptor_hook)(
             interceptor,
-            on_click_minus,
-            SingleModeSkillLearningViewController_OnClickMinusListItem_hook as *mut c_void,
+            orig_addr,
+            single_mode_skill_learning_view_controller_on_click_minus_list_item_hook as *mut c_void,
         );
 
         log(0, "Hooking finished");

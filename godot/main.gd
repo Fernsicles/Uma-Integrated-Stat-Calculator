@@ -58,6 +58,15 @@ func update_chara_data(chara_data: Variant) -> void:
 	%ParamBar.guts_value = chara_data.guts
 	%ParamBar.wiz_value = chara_data.wiz
 	score = score_calc.calculate_score(chara_data)
+	for skill: Variant in chara_data.acquired_skills:
+		add_skill_item(skill)
+
+
+func add_skill_item(skill: Variant) -> SkillListItem:
+	var list_item: SkillListItem = preload("res://scenes/skill_list_item.tscn").instantiate()
+	list_item.setup(skill)
+	%SkillsContainer.add_child(list_item, true)
+	return list_item
 
 
 func add_potential_skill(skills: Variant) -> void:

@@ -75,6 +75,7 @@ enum SkillTag {
 struct SkillData {
     id: i32,
     name: String,
+    group_id: i32,
     rarity: i32,
     level: i32,
     remark: String,
@@ -146,16 +147,10 @@ fn skilldata_to_struct(skill_data: *mut Il2CppObject) -> SkillData {
 
         let skill_data_class = get_class("Gallop.MasterSkillData.SkillData");
 
-        let get_enum_tag_list: GetPointer = std::mem::transmute((vtable.il2cpp_get_method_addr)(
-            skill_data_class,
-            c"GetEnumTagList".as_ptr(),
-            0,
-        ));
-        let is_unique_skill: GetU8 = std::mem::transmute((vtable.il2cpp_get_method_addr)(
-            skill_data_class,
-            c"IsUniqueSkill".as_ptr(),
-            0,
-        ));
+        let get_enum_tag_list: GetPointer =
+            std::mem::transmute(get_method(skill_data_class, "GetEnumTagList", 0));
+        let is_unique_skill: GetU8 =
+            std::mem::transmute(get_method(skill_data_class, "IsUniqueSkill", 0));
 
         let name = get_object(skill_data_class, "Name", skill_data) as *const Il2CppString;
         let name_string = il2cppstring_as_string(name.as_ref_unchecked());
@@ -183,9 +178,11 @@ fn skilldata_to_struct(skill_data: *mut Il2CppObject) -> SkillData {
         let getter_i32_field =
             |field: &str| -> i32 { return get_i32_field(skill_data_class, field, skill_data) };
 
+        let id = getter_i32_field("Id");
         return SkillData {
-            id: getter_i32_field("Id"),
+            id: id,
             name: name_string,
+            group_id: id / 10,
             rarity: getter_i32_field("Rarity"),
             level: 0,
             remark: remark_string,
@@ -440,15 +437,13 @@ fn single_mode_main_view_training_status_setup_hook(
 
 fn on_click_list_item_common(item: *mut Il2CppObject, plus: bool) -> Vec<SkillData> {
     unsafe {
-        let vtable = VTABLE.unwrap();
-
         let parts_single_mode_skill_learning_list_item_class =
             get_gallop_class("PartsSingleModeSkillLearningListItem");
         let info_class = get_class("Gallop.PartsSingleModeSkillLearningListItem.Info");
 
-        let get_top_info: GetObject = std::mem::transmute((vtable.il2cpp_get_method_addr)(
+        let get_top_info: GetObject = std::mem::transmute(get_method(
             parts_single_mode_skill_learning_list_item_class,
-            c"GetTopInfo".as_ptr(),
+            "GetTopInfo",
             0,
         ));
 
@@ -544,6 +539,108 @@ unsafe extern "C" fn single_mode_skill_learning_view_controller_on_click_minus_l
     }
 }
 
+fn evo_skill_common(original_id: i32, result_id: i32) {
+    unsafe {
+        let tx = TX.clone();
+
+        let master_data_manager_class = get_gallop_class("MasterDataManager");
+        let master_skill_data_class = get_gallop_class("MasterSkillData");
+
+        let master_skill_data_get: unsafe extern "C" fn(
+            *mut Il2CppObject,
+            i32,
+        ) -> *mut Il2CppObject = std::mem::transmute(get_method(master_skill_data_class, "Get", 1));
+
+        let master_data_manager = get_singleton(master_data_manager_class);
+        let master_skill_data = get_object(
+            master_data_manager_class,
+            "masterSkillData",
+            master_data_manager,
+        );
+
+        let original_skill_data = master_skill_data_get(master_skill_data, original_id);
+        let message = if result_id != 0 {
+            let result_skill_data = master_skill_data_get(master_skill_data, result_id);
+            let mut result_skill_struct = skilldata_to_struct(result_skill_data);
+            result_skill_struct.group_id = original_id / 10;
+            Message {
+                message_type: MessageType::SkillPlus,
+                message: MessageData::SkillUpdate(vec![result_skill_struct]),
+            }
+        } else {
+            Message {
+                message_type: MessageType::SkillPlus,
+                message: MessageData::SkillUpdate(vec![skilldata_to_struct(original_skill_data)]),
+            }
+        };
+        tx.send(serde_json::to_string(&message).unwrap()).unwrap();
+
+        drop(message);
+        drop(tx);
+    }
+}
+
+unsafe extern "C" fn parts_single_mode_skill_upgrade_select_item_is_selected(
+    this: *mut Il2CppObject,
+) -> bool {
+    unsafe {
+        let vtable = VTABLE.unwrap();
+
+        let (_, interceptor) = get_hachimi_and_interceptor();
+        let trampoline = (vtable.interceptor_get_trampoline_addr)(
+            interceptor,
+            parts_single_mode_skill_upgrade_select_item_is_selected as *mut c_void,
+        );
+        let original: unsafe extern "C" fn(*mut Il2CppObject) -> bool =
+            std::mem::transmute(trampoline);
+
+        let parts_single_mode_skill_upgrade_select_item_class =
+            get_gallop_class("PartsSingleModeSkillUpgradeSelectItem");
+        let select_result_class =
+            get_class("Gallop.DialogSingleModeSkillUpgradeSelect.SelectResult");
+
+        let get_selected_result: unsafe extern "C" fn(*mut Il2CppObject) -> *mut Il2CppObject =
+            std::mem::transmute(get_method(
+                parts_single_mode_skill_upgrade_select_item_class,
+                "GetSelectedResult",
+                0,
+            ));
+
+        let is_selected = original(this);
+
+        if is_selected {
+            let selected_result = get_selected_result(this);
+            let original_id = get_i32_field(select_result_class, "OriginSkillId", selected_result);
+            let result_id = get_i32_field(select_result_class, "ResultSkillId", selected_result);
+            evo_skill_common(original_id, result_id);
+        }
+
+        return is_selected;
+    }
+}
+
+unsafe extern "C" fn dialog_single_mode_skill_upgrade_speciality_select_on_click_skill_upgrade_speciality_select_item_hook(
+    this: *mut Il2CppObject,
+    original_skill_id: i32,
+    result_skill_id: i32,
+) {
+    unsafe {
+        let vtable = VTABLE.unwrap();
+
+        let (_, interceptor) = get_hachimi_and_interceptor();
+        let trampoline = (vtable.interceptor_get_trampoline_addr)(
+            interceptor,
+            dialog_single_mode_skill_upgrade_speciality_select_on_click_skill_upgrade_speciality_select_item_hook as *mut c_void,
+        );
+        let original: unsafe extern "C" fn(*mut Il2CppObject, i32, i32) =
+            std::mem::transmute(trampoline);
+
+        evo_skill_common(original_skill_id, result_skill_id);
+
+        original(this, original_skill_id, result_skill_id);
+    }
+}
+
 fn websocket_handler(stream: TcpStream) {
     let mut ws = accept(stream).unwrap();
     let rx = RX.clone();
@@ -576,6 +673,8 @@ fn websocket_handler(stream: TcpStream) {
     }
 }
 
+fn web_server_thread() {}
+
 #[unsafe(export_name = "hachimi_init")]
 pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> InitResult {
     if vtable.is_null() {
@@ -593,9 +692,9 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
         log(0, "Hooking started");
         let (_, interceptor) = get_hachimi_and_interceptor();
 
-        let orig_addr = (vtable.il2cpp_get_method_addr)(
+        let orig_addr = get_method(
             get_gallop_class("DialogTrainedCharacterDetail"),
-            c"CreateSetupParameter".as_ptr(),
+            "CreateSetupParameter",
             5,
         );
         (vtable.interceptor_hook)(
@@ -604,9 +703,9 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
             dialog_trained_character_detail_create_setup_parameter_hook as *mut c_void,
         );
 
-        let orig_addr = (vtable.il2cpp_get_method_addr)(
+        let orig_addr = get_method(
             get_gallop_class("PartsSingleModeCharacterStatusPanel"),
-            c"Setup".as_ptr(),
+            "Setup",
             1,
         );
         (vtable.interceptor_hook)(
@@ -626,9 +725,9 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
             single_mode_main_view_training_status_setup_hook as *mut c_void,
         );
 
-        let orig_addr = (vtable.il2cpp_get_method_addr)(
+        let orig_addr = get_method(
             get_gallop_class("SingleModeSkillLearningViewController"),
-            c"OnClickPlusListItem".as_ptr(),
+            "OnClickPlusListItem",
             1,
         );
         (vtable.interceptor_hook)(
@@ -637,9 +736,9 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
             single_mode_skill_learning_view_controller_on_click_plus_list_item_hook as *mut c_void,
         );
 
-        let orig_addr = (vtable.il2cpp_get_method_addr)(
+        let orig_addr = get_method(
             get_gallop_class("SingleModeSkillLearningViewController"),
-            c"OnClickMinusListItem".as_ptr(),
+            "OnClickMinusListItem",
             1,
         );
         (vtable.interceptor_hook)(
@@ -648,14 +747,39 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
             single_mode_skill_learning_view_controller_on_click_minus_list_item_hook as *mut c_void,
         );
 
+        let orig_addr = get_method(
+            get_gallop_class("PartsSingleModeSkillUpgradeSelectItem"),
+            "IsSelected",
+            0,
+        );
+        (vtable.interceptor_hook)(
+            interceptor,
+            orig_addr,
+            parts_single_mode_skill_upgrade_select_item_is_selected as *mut c_void,
+        );
+
+        let orig_addr = get_method(
+            get_gallop_class("DialogSingleModeSkillUpgradeSpecialitySelect"),
+            "OnClickSkillUpgradeSpecialitySelectItem",
+            2,
+        );
+        (vtable.interceptor_hook)(
+            interceptor,
+            orig_addr,
+            dialog_single_mode_skill_upgrade_speciality_select_on_click_skill_upgrade_speciality_select_item_hook as *mut c_void,
+        );
+
         log(0, "Hooking finished");
 
         let sprite_class = get_class_from_image("UnityEngine.CoreModule.dll", "UnityEngine.Sprite");
         let sprite_get_name: unsafe extern "C" fn(*mut Il2CppObject) -> *mut Il2CppString =
             std::mem::transmute(get_method(sprite_class, "get_name", 0));
         let ui_manager = UiManager::init();
+        log(0, "Loading atlas");
         let atlas_reference = AtlasReference::new(ui_manager.load_atlas(16, true));
+        log(0, "Getting sprites");
         let rank_sprite_array = atlas_reference.get_sprites();
+        log(0, "Iterating over sprites");
         let mut rank_icons = HashMap::new();
         for i in 0..(*rank_sprite_array).max_length {
             let sprite = array_get_obj(rank_sprite_array.as_ref_unchecked(), i);
@@ -705,6 +829,10 @@ pub unsafe extern "C" fn hachimi_init(vtable: *const Vtable, version: i32) -> In
                         } else {
                             rouille::Response::empty_400()
                         }
+                        // let sprite = get_final_training_rank_sprite(get_total_rank(rank_score));
+                        // let texture2d = sprite_to_texture2d(sprite);
+                        // let png = texture2d_to_png(texture2d);
+                        // rouille::Response::from_data("image/png", png.clone())
                     },
                     _ => {
                         rouille::match_assets(&request, "uisc")
